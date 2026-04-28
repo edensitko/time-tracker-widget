@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Time Tracker · Track hours by project</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&family=Frank+Ruhl+Libre:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0d10;
+    --bg-elev: #15171c;
+    --bg-elev-2: #1c1f26;
+    --line: #262932;
+    --line-soft: #1f222a;
+    --text: #e8e6e1;
+    --text-dim: #8a8c93;
+    --text-mute: #5a5c63;
+    --accent: #f4a261;
+    --accent-soft: rgba(244, 162, 97, 0.12);
+    --accent-line: rgba(244, 162, 97, 0.35);
+    --green: #7eb88f;
+    --red: #d97757;
+    --shadow: 0 20px 40px -15px rgba(0,0,0,0.5);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; width: 100%; background: var(--bg); color: var(--text);
+    font-family: 'Heebo', system-ui, sans-serif;
+    font-weight: 400; overflow: hidden;
+    -webkit-font-smoothing: antialiased; line-height: 1.5;
+  }
+  body {
+    background:
+      radial-gradient(ellipse 60% 50% at 75% -10%, rgba(244,162,97,0.07), transparent),
+      radial-gradient(ellipse 50% 40% at 20% 110%, rgba(126,184,143,0.05), transparent),
+      var(--bg);
+  }
+
+  /* ── APP SHELL ── */
+  .app {
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    grid-template-columns: 1fr 1px 400px;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--line-soft);
+    background: rgba(12,13,16,0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 10;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), #d97757);
+    display: grid; place-items: center; color: #1a1208;
+    font-size: 15px; font-weight: 900;
+    box-shadow: 0 4px 12px -4px rgba(244,162,97,0.5);
+  }
+  .brand-name { font-family: 'Frank Ruhl Libre', serif; font-weight: 700; font-size: 16px; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .date-label { font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .date-label strong { color: var(--text); font-weight: 500; }
+
+  /* ── DIVIDER ── */
+  .divider {
+    grid-row: 2;
+    grid-column: 2;
+    background: var(--line);
+  }
+
+  /* ── LEFT PANEL — history ── */
+  .panel-left {
+    grid-row: 2;
+    grid-column: 1;
+    overflow: hidden;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .left-scroll {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+  .left-scroll::-webkit-scrollbar { width: 4px; }
+  .left-scroll::-webkit-scrollbar-track { background: transparent; }
+  .left-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+  /* ── RIGHT PANEL — timer ── */
+  .panel-right {
+    grid-row: 2;
+    grid-column: 3;
+    overflow: hidden;
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 16px;
+    background: linear-gradient(180deg, rgba(21,23,28,0.6) 0%, transparent 100%);
+  }
+
+  /* ── CLOCK ── */
+  .clock-block { text-align: center; }
+  .live-time {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: clamp(44px, 7vw, 76px);
+    font-weight: 500; letter-spacing: -0.04em; line-height: 1;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(180deg, #fff 0%, #b8b6b1 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .live-seconds { color: var(--accent); -webkit-text-fill-color: var(--accent); }
+
+  /* טיימר משמרת פעילה */
+  .session-timer {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: clamp(52px, 8vw, 88px);
+    font-weight: 700; letter-spacing: -0.04em; line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    -webkit-text-fill-color: var(--accent);
+  }
+  .session-timer-label {
+    font-size: 12px; color: var(--text-mute);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin-top: 6px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .session-timer-label .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green); animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+
+  .status-row {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 12px; padding: 5px 13px; border-radius: 999px;
+    background: var(--bg); border: 1px solid var(--line);
+    font-size: 12px; color: var(--text-dim);
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-mute); flex-shrink: 0; }
+  .status-row.active { color: var(--green); border-color: rgba(126,184,143,0.3); }
+
+  /* ── PROJECT PICKER ── */
+  .section-label {
+    font-size: 11px; color: var(--text-mute);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .project-picker { position: relative; }
+  .picker-trigger {
+    width: 100%; background: var(--bg-elev); border: 1px solid var(--line); color: var(--text);
+    padding: 12px 16px; border-radius: 12px;
+    font-family: inherit; font-size: 14px; text-align: right; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .picker-trigger:hover:not(:disabled) { border-color: var(--accent-line); }
+  .picker-trigger.open { border-color: var(--accent-line); background: var(--bg-elev-2); }
+  .picker-trigger:disabled { opacity: 0.55; cursor: not-allowed; }
+  .picker-trigger .placeholder { color: var(--text-mute); }
+  .picker-trigger .selected { display: flex; align-items: center; gap: 10px; overflow: hidden; }
+  .picker-trigger .chevron { color: var(--text-mute); transition: transform 0.2s; flex-shrink: 0; font-size: 11px; }
+  .picker-trigger.open .chevron { transform: rotate(180deg); }
+
+  .color-dot {
+    width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  }
+
+  .picker-menu {
+    position: absolute; top: calc(100% + 6px); inset-inline: 0;
+    background: var(--bg-elev); border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.6);
+    z-index: 100; max-height: 280px; overflow-y: auto; display: none;
+  }
+  .picker-menu.open { display: block; }
+  .picker-search {
+    width: 100%; padding: 10px 14px;
+    background: var(--bg); border: none; border-bottom: 1px solid var(--line-soft);
+    color: var(--text); font-family: inherit; font-size: 13px;
+    position: sticky; top: 0;
+  }
+  .picker-search:focus { outline: none; }
+  .picker-option {
+    padding: 9px 14px; display: flex; align-items: center; gap: 10px;
+    cursor: pointer; font-size: 13px; border: none; background: none;
+    width: 100%; text-align: right; color: var(--text); font-family: inherit;
+    transition: background 0.12s;
+  }
+  .picker-option:hover { background: var(--bg-elev-2); }
+  .picker-option .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .picker-option .total { font-size: 11px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
+  .picker-option .remove {
+    color: var(--text-mute); background: none; border: none; cursor: pointer;
+    padding: 2px 5px; font-size: 15px; border-radius: 4px; visibility: hidden;
+  }
+  .picker-option:hover .remove { visibility: visible; }
+  .picker-option .remove:hover { color: var(--red); background: rgba(217,119,87,0.1); }
+  .picker-add {
+    border-top: 1px solid var(--line-soft); padding: 10px;
+    background: var(--bg-elev-2); position: sticky; bottom: 0;
+  }
+  .picker-add-row { display: flex; gap: 6px; }
+  .picker-add-input {
+    flex: 1; padding: 7px 10px;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--text); font-family: inherit; font-size: 13px;
+  }
+  .picker-add-input:focus { outline: none; border-color: var(--accent-line); }
+  .picker-add-btn {
+    padding: 7px 13px; background: var(--accent); color: #1a1208;
+    border: none; border-radius: 8px; font-family: inherit;
+    font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap;
+  }
+  .picker-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .picker-empty { padding: 18px 14px; color: var(--text-mute); font-size: 12px; text-align: center; }
+
+  /* ── PUNCH BUTTON ── */
+  .punch-btn {
+    width: 100%; padding: 16px; border-radius: 14px; border: none;
+    font-family: inherit; font-size: 15px; font-weight: 700; letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .punch-btn.in {
+    background: linear-gradient(135deg, var(--accent), #e08a45);
+    color: #1a1208; box-shadow: 0 10px 28px -8px rgba(244,162,97,0.55);
+  }
+  .punch-btn.out {
+    background: linear-gradient(135deg, var(--red), #b85e3f);
+    color: #fff; box-shadow: 0 10px 28px -8px rgba(217,119,87,0.55);
+  }
+  .punch-btn:hover:not(:disabled) { transform: translateY(-1px); }
+  .punch-btn:active:not(:disabled) { transform: translateY(1px); }
+  .punch-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* ── STATS (right panel) ── */
+  .stats-mini {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  }
+  .stat-mini {
+    background: var(--bg-elev); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 10px; text-align: center;
+  }
+  .stat-mini-label { font-size: 10px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.08em; }
+  .stat-mini-value {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 20px; font-weight: 700;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+    margin-top: 2px;
+  }
+
+
+  /* ── PROJECT VIEW SELECTOR ── */
+  .proj-view-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 0 16px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .proj-view-label { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
+  .proj-view-select-wrap { position: relative; flex: 1; }
+  .proj-view-select-wrap::after {
+    content: '▾'; position: absolute; inset-inline-end: 12px; top: 50%;
+    transform: translateY(-50%); color: var(--text-mute); font-size: 11px;
+    pointer-events: none;
+  }
+  .proj-view-select {
+    width: 100%; appearance: none; -webkit-appearance: none;
+    background: var(--bg-elev); border: 1px solid var(--line);
+    color: var(--text); font-family: inherit; font-size: 13px;
+    padding: 8px 32px 8px 12px; border-radius: 9px; cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .proj-view-select:focus { outline: none; border-color: var(--accent-line); }
+  .proj-view-select option { background: #1c1f26; }
+
+  /* ── LEFT: SECTION HEAD ── */
+  .section-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line-soft);
+    flex-wrap: wrap; gap: 10px;
+  }
+  .section-head h2 {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 18px; font-weight: 700; letter-spacing: -0.01em;
+  }
+  .section-head + .section-head { margin-top: 32px; }
+  .head-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ghost-btn {
+    background: transparent; border: 1px solid var(--line); color: var(--text-mute);
+    padding: 4px 10px; border-radius: 7px;
+    font-family: inherit; font-size: 11px; cursor: pointer; transition: all 0.15s;
+  }
+  .ghost-btn:hover { color: var(--text); border-color: var(--accent-line); }
+  .ghost-btn.danger:hover { color: var(--red); border-color: var(--red); }
+  .ghost-btn.active { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
+
+
+  /* ── VIEW TOGGLE ── */
+  .view-toggle {
+    display: flex; gap: 4px;
+  }
+  .view-btn {
+    background: transparent; border: 1px solid var(--line); color: var(--text-mute);
+    padding: 4px 10px; border-radius: 7px;
+    font-family: inherit; font-size: 11px; cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .view-btn:hover { color: var(--text); border-color: var(--accent-line); }
+  .view-btn.active { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
+  .view-btn svg { width: 12px; height: 12px; }
+
+  /* ── LEFT: SESSIONS ── */
+  .sessions-list { display: flex; flex-direction: column; gap: 5px; }
+
+  /* פריט בסיסי */
+  .sess-item {
+    display: flex; align-items: center;
+    background: var(--bg-elev); border: 1px solid var(--line);
+    border-radius: 12px; padding: 10px 14px;
+    cursor: pointer; transition: border-color 0.18s, background 0.18s;
+    position: relative; overflow: hidden; gap: 12px;
+  }
+  .sess-item::before {
+    content: ''; position: absolute;
+    inset-block: 0; inset-inline-end: 0; width: 3px;
+    background: var(--sess-color, var(--accent));
+  }
+  .sess-item::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 55%, color-mix(in srgb, var(--sess-color, var(--accent)) 5%, transparent));
+    pointer-events: none;
+  }
+  .sess-item:hover {
+    border-color: color-mix(in srgb, var(--sess-color, var(--accent)) 45%, transparent);
+    background: var(--bg-elev-2);
+  }
+  .sess-right { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
+  .sess-color-bar {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    box-shadow: 0 0 6px -1px var(--sess-color, var(--accent));
+  }
+  .sess-proj-name {
+    font-size: 13px; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text);
+  }
+  .sess-proj-name.deleted { color: var(--text-mute); font-style: italic; font-weight: 400; }
+  .sess-date-tag {
+    font-size: 10px; color: var(--text-mute); white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .sess-center {
+    flex: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sess-left { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+  .sess-dur {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 18px; font-weight: 700;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+    color: var(--sess-color, var(--text)); line-height: 1;
+  }
+  .sess-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .sess-meta-time {
+    font-size: 14px; color: var(--text);
+    font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .sess-meta-date { font-size: 11px; color: var(--text-mute); white-space: nowrap; }
+  .delete-btn {
+    background: transparent; border: none; color: var(--text-mute);
+    cursor: pointer; padding: 3px 6px; font-size: 14px;
+    border-radius: 5px; transition: all 0.15s; flex-shrink: 0; opacity: 0; z-index: 1;
+  }
+  .sess-item:hover .delete-btn { opacity: 1; }
+  .delete-btn:hover { color: var(--red); background: rgba(217,119,87,0.12); }
+
+  /* ── GROUP HEADER (לפי יום / לפי פרויקט) ── */
+  .group-block { margin-bottom: 4px; }
+  .group-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 4px 6px;
+    border-bottom: 1px solid var(--line-soft);
+    margin-bottom: 5px;
+  }
+  .group-header-left { display: flex; align-items: center; gap: 8px; }
+  .group-title { font-size: 12px; font-weight: 600; color: var(--text-dim); }
+  .group-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .group-total {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 14px; font-weight: 700;
+    color: var(--accent); font-variant-numeric: tabular-nums;
+  }
+
+  .empty-state {
+    text-align: center; padding: 48px 20px; color: var(--text-mute);
+    background: var(--bg-elev); border: 1px dashed var(--line); border-radius: 14px;
+  }
+  .empty-state-icon { font-size: 32px; margin-bottom: 10px; opacity: 0.35; }
+  .empty-state p { font-size: 13px; }
+
+  /* ── EDIT MODAL ── */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    z-index: 500; display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .modal-backdrop.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--bg-elev); border: 1px solid var(--line);
+    border-radius: 18px; padding: 28px 24px; width: 360px; max-width: 90vw;
+    box-shadow: 0 32px 64px -16px rgba(0,0,0,0.7);
+    transform: translateY(12px); transition: transform 0.2s;
+  }
+  .modal-backdrop.open .modal { transform: translateY(0); }
+  .modal-title {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 17px; font-weight: 700; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .modal-fields { display: flex; flex-direction: column; gap: 14px; }
+  .modal-field label { display: block; font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .modal-input {
+    width: 100%; padding: 10px 12px;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 9px;
+    color: var(--text); font-family: inherit; font-size: 14px;
+    font-variant-numeric: tabular-nums; transition: border-color 0.15s;
+  }
+  .modal-input:focus { outline: none; border-color: var(--accent-line); }
+  .modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 22px; }
+  .modal-save {
+    flex: 1; padding: 11px; border-radius: 10px; border: none;
+    background: linear-gradient(135deg, var(--accent), #e08a45);
+    color: #1a1208; font-family: inherit; font-weight: 700; font-size: 14px;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .modal-save:hover { opacity: 0.9; }
+  .modal-cancel {
+    padding: 11px 18px; border-radius: 10px;
+    background: transparent; border: 1px solid var(--line);
+    color: var(--text-dim); font-family: inherit; font-size: 14px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .modal-cancel:hover { border-color: var(--accent-line); color: var(--text); }
+  .modal-delete {
+    padding: 11px 14px; border-radius: 10px;
+    background: transparent; border: 1px solid var(--line);
+    color: var(--text-mute); font-family: inherit; font-size: 13px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .modal-delete:hover { color: var(--red); border-color: var(--red); background: rgba(217,119,87,0.08); }
+
+  .session-row { cursor: pointer; }
+  .session-row:hover { background: rgba(255,255,255,0.03); }
+
+  /* ── MOBILE: stack ── */
+  @media (max-width: 768px) {
+    html, body { overflow: auto; height: auto; }
+    .app {
+      display: flex; flex-direction: column; height: auto;
+    }
+    .divider { display: none; }
+    .panel-right { order: -1; overflow: visible; padding: 20px 16px; }
+    .panel-left { overflow: visible; padding: 16px; }
+    .topbar { position: sticky; top: 0; z-index: 20; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">⏱</div>
+      <span class="brand-name">Time Tracker</span>
+    </div>
+    <div class="topbar-right">
+      <div class="date-label">
+        <strong id="todayDate">—</strong>
+        <span id="todayDay">—</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- LEFT: HISTORY -->
+  <div class="panel-left">
+    <div class="left-scroll">
+
+      <!-- project view selector -->
+      <div class="proj-view-bar">
+        <span class="proj-view-label">Show</span>
+        <div class="proj-view-select-wrap">
+          <select class="proj-view-select" id="projViewSelect" onchange="onProjViewChange(this.value)">
+            <option value="">All projects</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- sessions -->
+      <div class="section-head" style="margin-top:20px">
+        <h2 id="historyTitle">History</h2>
+        <div class="head-actions">
+          <div class="view-toggle">
+            <button class="view-btn active" id="viewList" onclick="setHistoryView('list')" title="List">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="1" y1="2.5" x2="11" y2="2.5"/><line x1="1" y1="6" x2="11" y2="6"/><line x1="1" y1="9.5" x2="11" y2="9.5"/></svg>
+            </button>
+            <button class="view-btn" id="viewDay" onclick="setHistoryView('day')" title="By day">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="10" height="10" rx="1.5"/><line x1="1" y1="4.5" x2="11" y2="4.5"/></svg>
+            </button>
+            <button class="view-btn" id="viewProject" onclick="setHistoryView('project')" title="By project">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="3" cy="3" r="1.5"/><circle cx="3" cy="9" r="1.5"/><line x1="6" y1="3" x2="11" y2="3"/><line x1="6" y1="9" x2="11" y2="9"/></svg>
+            </button>
+          </div>
+          <button class="ghost-btn" onclick="exportCSV()">CSV</button>
+        </div>
+      </div>
+      <div class="sessions-list" id="sessionsList"></div>
+
+    </div>
+  </div>
+
+  <!-- DIVIDER -->
+  <div class="divider"></div>
+
+  <!-- RIGHT: TIMER -->
+  <div class="panel-right">
+
+    <!-- clock -->
+    <div class="clock-block">
+      <!-- שעון שעה רגיל — נסתר כשבעבודה -->
+      <div id="wallClock">
+        <div class="live-time">
+          <span id="hourMin">00:00</span><span class="live-seconds" id="seconds">:00</span>
+        </div>
+        <div class="status-row" id="statusRow">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Not working</span>
+        </div>
+      </div>
+      <!-- טיימר משמרת — מוצג רק כשבעבודה -->
+      <div id="sessionTimerBlock" style="display:none">
+        <div class="session-timer" id="sessionTimerDisplay">00:00</div>
+        <div class="session-timer-label">
+          <span class="dot"></span>
+          <span id="sessionTimerProject">Working</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- project picker -->
+    <div>
+      <div class="section-label">Project</div>
+      <div class="project-picker" id="projectPicker">
+        <button class="picker-trigger" id="pickerTrigger" onclick="togglePicker(event)">
+          <span class="selected" id="pickerSelectedView">
+            <span class="placeholder">Select project…</span>
+          </span>
+          <span class="chevron">▾</span>
+        </button>
+        <div class="picker-menu" id="pickerMenu" onclick="event.stopPropagation()">
+          <input type="text" class="picker-search" id="pickerSearch" placeholder="Search project…" oninput="renderPickerOptions()" />
+          <div id="pickerOptions"></div>
+          <div class="picker-add">
+            <div class="picker-add-row">
+              <input
+                type="text"
+                class="picker-add-input"
+                id="newProjectName"
+                placeholder="New project…"
+                maxlength="60"
+                onkeydown="if(event.key==='Enter'){addProject();event.preventDefault();}"
+              />
+              <button class="picker-add-btn" onclick="addProject()">+ Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- punch button -->
+    <button class="punch-btn in" id="punchBtn" onclick="togglePunch()" disabled>
+      <span id="punchIcon">▶</span>
+      <span id="punchText">Select a project to start</span>
+    </button>
+
+    <!-- mini stats -->
+    <div>
+      <div class="section-label" style="margin-bottom:8px">Summary</div>
+      <div class="stats-mini">
+        <div class="stat-mini">
+          <div class="stat-mini-label">Today</div>
+          <div class="stat-mini-value" id="todayTotal">0:00</div>
+        </div>
+        <div class="stat-mini">
+          <div class="stat-mini-label">Week</div>
+          <div class="stat-mini-value" id="weekTotal">0:00</div>
+        </div>
+        <div class="stat-mini">
+          <div class="stat-mini-label">Month</div>
+          <div class="stat-mini-value" id="monthTotal">0:00</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- EDIT SESSION MODAL -->
+<div class="modal-backdrop" id="editModalBackdrop" onclick="closeEditModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">
+      <span id="editModalDot" class="color-dot" style="width:11px;height:11px"></span>
+      Edit Session
+    </div>
+    <div class="modal-fields">
+      <div class="modal-field">
+        <label>Date</label>
+        <input type="date" class="modal-input" id="editDate" />
+      </div>
+      <div class="modal-row">
+        <div class="modal-field">
+          <label>Start time</label>
+          <input type="time" class="modal-input" id="editStart" />
+        </div>
+        <div class="modal-field">
+          <label>End time</label>
+          <input type="time" class="modal-input" id="editEnd" />
+        </div>
+      </div>
+      <div class="modal-field">
+        <label>Project</label>
+        <select class="modal-input" id="editProject"></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-save" onclick="saveEditSession()">Save</button>
+      <button class="modal-cancel" onclick="closeEditModal()">Cancel</button>
+      <button class="modal-delete" onclick="deleteEditSession()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let historyView = 'list'; // 'list' | 'day' | 'project'
+
+  function setHistoryView(v) {
+    historyView = v;
+    ['list','day','project'].forEach(k =>
+      document.getElementById('view' + k.charAt(0).toUpperCase() + k.slice(1))
+        .classList.toggle('active', k === v)
+    );
+    renderSessions();
+  }
+
+  let projects = [];
+  let sessions = [];
+  let activeSession = null;
+  let selectedProjectId = null;
+  let pickerOpen = false;
+  let projectFilter = 'week';
+  let historyProjectFilter = null; // null = all, string id = specific project
+
+  const PALETTE = [
+    '#f4a261','#7eb88f','#6b9bd1','#c084c0','#e8b04c',
+    '#d97757','#5fb3a1','#a890d6','#e07a8b','#88a8b0'
+  ];
+
+  const API = 'http://127.0.0.1:57321';
+
+  async function loadState() {
+    try {
+      const res = await fetch(`${API}/state`);
+      const data = await res.json();
+      projects         = data.projects         || [];
+      sessions         = data.sessions         || [];
+      activeSession    = data.activeSession    || null;
+      selectedProjectId = data.selectedProjectId || null;
+    } catch(e) {
+      console.error('loadState failed:', e);
+      projects = []; sessions = []; activeSession = null; selectedProjectId = null;
+    }
+    if (activeSession && activeSession.projectId) selectedProjectId = activeSession.projectId;
+  }
+
+  async function persistState() {
+    try {
+      await fetch(`${API}/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projects, sessions, activeSession, selectedProjectId })
+      });
+    } catch(e) { console.error('persistState failed:', e); }
+  }
+
+  async function saveProjects()  { await persistState(); }
+  async function saveSessions()  { await persistState(); }
+  async function saveActive()    { await persistState(); }
+  async function saveSelected()  { await persistState(); }
+
+  const pad = n => String(n).padStart(2, '0');
+  const formatElapsed = ms => {
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+  };
+  const formatHM = ms => {
+    const totalMin = Math.floor(ms / 60000);
+    return `${Math.floor(totalMin/60)}:${pad(totalMin%60)}`;
+  };
+  const formatDuration = ms => {
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    return `${h}:${pad(m)}`;
+  };
+  const formatTimeOfDay = ts => {
+    const d = new Date(ts);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const dateKey = ts => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  };
+  const isSameDay = (a, b) => {
+    const da = new Date(a), db = new Date(b);
+    return da.getFullYear()===db.getFullYear() && da.getMonth()===db.getMonth() && da.getDate()===db.getDate();
+  };
+  const isThisWeek = ts => {
+    const now = new Date();
+    const start = new Date(now); start.setHours(0,0,0,0); start.setDate(now.getDate() - now.getDay());
+    const end = new Date(start); end.setDate(start.getDate() + 7);
+    return new Date(ts) >= start && new Date(ts) < end;
+  };
+  const isThisMonth = ts => {
+    const now = new Date(), d = new Date(ts);
+    return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+  };
+  const escapeHtml = str => String(str)
+    .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+    .replaceAll('"','&quot;').replaceAll("'",'&#39;');
+
+  function getProject(id) { return projects.find(p => p.id === id); }
+  function projectName(id) { const p = getProject(id); return p ? p.name : 'Deleted project'; }
+
+  async function addProject() {
+    const input = document.getElementById('newProjectName');
+    const name = input.value.trim();
+    if (!name) return;
+    if (projects.some(p => p.name.toLowerCase() === name.toLowerCase())) { alert('A project with this name already exists'); return; }
+    const usedColors = new Set(projects.map(p => p.color));
+    const color = PALETTE.find(c => !usedColors.has(c)) || PALETTE[projects.length % PALETTE.length];
+    const newProj = { id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,8), name, color, createdAt: Date.now() };
+    projects.push(newProj);
+    await saveProjects();
+    input.value = '';
+    selectProject(newProj.id);
+    renderPickerOptions();
+  }
+
+  async function deleteProject(id, ev) {
+    ev.stopPropagation();
+    const p = getProject(id);
+    if (!p) return;
+    const usedCount = sessions.filter(s => s.projectId === id).length + (activeSession && activeSession.projectId === id ? 1 : 0);
+    let msg = `Delete project "${p.name}"?`;
+    if (usedCount > 0) msg += `\n${usedCount} sessions will remain but be marked as "deleted project".`;
+    if (!confirm(msg)) return;
+    projects = projects.filter(x => x.id !== id);
+    if (selectedProjectId === id) { selectedProjectId = null; await saveSelected(); }
+    await saveProjects();
+    renderAll();
+    renderPickerOptions();
+  }
+
+  async function selectProject(id) {
+    selectedProjectId = id;
+    await saveSelected();
+    closePicker();
+    renderPickerSelected();
+    renderPunchButton();
+  }
+
+  function togglePicker(ev) {
+    ev.stopPropagation();
+    if (activeSession) return;
+    pickerOpen = !pickerOpen;
+    document.getElementById('pickerMenu').classList.toggle('open', pickerOpen);
+    document.getElementById('pickerTrigger').classList.toggle('open', pickerOpen);
+    if (pickerOpen) { renderPickerOptions(); setTimeout(() => document.getElementById('pickerSearch').focus(), 50); }
+  }
+  function closePicker() {
+    pickerOpen = false;
+    document.getElementById('pickerMenu').classList.remove('open');
+    document.getElementById('pickerTrigger').classList.remove('open');
+    document.getElementById('pickerSearch').value = '';
+  }
+  document.addEventListener('click', e => {
+    if (!document.getElementById('projectPicker').contains(e.target)) closePicker();
+  });
+
+  function getProjectTotalMs(projectId) {
+    let total = sessions.filter(s => s.projectId === projectId).reduce((sum, s) => sum + (s.end - s.start), 0);
+    if (activeSession && activeSession.projectId === projectId) total += Date.now() - activeSession.start;
+    return total;
+  }
+
+  function renderPickerOptions() {
+    const search = document.getElementById('pickerSearch').value.trim().toLowerCase();
+    const container = document.getElementById('pickerOptions');
+    let filtered = projects.slice();
+    if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search));
+    filtered.sort((a, b) => getProjectTotalMs(b.id) - getProjectTotalMs(a.id));
+    if (filtered.length === 0) {
+      container.innerHTML = `<div class="picker-empty">${search ? 'No results' : 'No projects yet ⤵'}</div>`;
+      return;
+    }
+    container.innerHTML = filtered.map(p => {
+      const total = getProjectTotalMs(p.id);
+      return `
+        <button class="picker-option" onclick="selectProject('${p.id}')">
+          <span class="color-dot" style="background:${p.color}"></span>
+          <span class="name">${escapeHtml(p.name)}</span>
+          <span class="total">${total > 0 ? formatHM(total) : '—'}</span>
+          <button class="remove" onclick="deleteProject('${p.id}', event)" title="מחק">×</button>
+        </button>`;
+    }).join('');
+  }
+
+  function renderPickerSelected() {
+    const view = document.getElementById('pickerSelectedView');
+    const p = getProject(selectedProjectId);
+    if (p) {
+      view.innerHTML = `<span class="color-dot" style="background:${p.color}"></span><span>${escapeHtml(p.name)}</span>`;
+    } else {
+      view.innerHTML = `<span class="placeholder">בחר פרויקט…</span>`;
+    }
+  }
+
+  function renderClock() {
+    const now = new Date();
+    document.getElementById('hourMin').textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    document.getElementById('seconds').textContent = `:${pad(now.getSeconds())}`;
+  }
+
+  function renderHeader() {
+    const now = new Date();
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    document.getElementById('todayDate').textContent = `${months[now.getMonth()]} ${now.getDate()}`;
+    document.getElementById('todayDay').textContent = days[now.getDay()];
+  }
+
+  function renderStatus() {
+    const wallClock        = document.getElementById('wallClock');
+    const sessionBlock     = document.getElementById('sessionTimerBlock');
+    const timerDisplay     = document.getElementById('sessionTimerDisplay');
+    const timerProject     = document.getElementById('sessionTimerProject');
+
+    if (activeSession) {
+      const elapsed = Date.now() - activeSession.start;
+      const p = getProject(activeSession.projectId);
+      wallClock.style.display    = 'none';
+      sessionBlock.style.display = 'block';
+      timerDisplay.textContent   = formatElapsed(elapsed);
+      timerProject.textContent   = p ? p.name : 'Working';
+      if (p) timerDisplay.style.color = p.color;
+      timerDisplay.style.webkitTextFillColor = timerDisplay.style.color;
+    } else {
+      wallClock.style.display    = 'block';
+      sessionBlock.style.display = 'none';
+      document.getElementById('statusRow').classList.remove('active');
+      document.getElementById('statusDot').style.background = '';
+      document.getElementById('statusText').textContent = 'Not working';
+    }
+  }
+
+  function renderPunchButton() {
+    const btn = document.getElementById('punchBtn');
+    const icon = document.getElementById('punchIcon');
+    const text = document.getElementById('punchText');
+    const trigger = document.getElementById('pickerTrigger');
+    if (activeSession) {
+      btn.classList.remove('in'); btn.classList.add('out');
+      icon.textContent = '⏹'; text.textContent = 'Stop working';
+      btn.disabled = false;
+      trigger.disabled = true;
+    } else {
+      btn.classList.remove('out'); btn.classList.add('in');
+      icon.textContent = '▶';
+      trigger.disabled = false;
+      if (selectedProjectId && getProject(selectedProjectId)) {
+        text.textContent = 'Start working';
+        btn.disabled = false;
+      } else {
+        text.textContent = 'Select a project to start';
+        btn.disabled = true;
+      }
+    }
+  }
+
+  function renderStats() {
+    const now = Date.now();
+    const base = historyProjectFilter
+      ? sessions.filter(s => s.projectId === historyProjectFilter)
+      : sessions;
+    const todayList = base.filter(s => isSameDay(s.start, now));
+    const weekList  = base.filter(s => isThisWeek(s.start));
+    const monthList = base.filter(s => isThisMonth(s.start));
+    let todaySum = todayList.reduce((s, x) => s + (x.end - x.start), 0);
+    let weekSum  = weekList.reduce ((s, x) => s + (x.end - x.start), 0);
+    let monthSum = monthList.reduce((s, x) => s + (x.end - x.start), 0);
+    const liveOk = activeSession && (!historyProjectFilter || activeSession.projectId === historyProjectFilter);
+    if (liveOk) {
+      const dur = now - activeSession.start;
+      if (isSameDay(activeSession.start, now)) todaySum += dur;
+      if (isThisWeek(activeSession.start))     weekSum  += dur;
+      if (isThisMonth(activeSession.start))    monthSum += dur;
+    }
+    document.getElementById('todayTotal').textContent = formatHM(todaySum);
+    document.getElementById('weekTotal').textContent  = formatHM(weekSum);
+    document.getElementById('monthTotal').textContent = formatHM(monthSum);
+  }
+
+  function getProjectTotalAllTime(id) {
+    return sessions.filter(s => s.projectId === id).reduce((sum, s) => sum + (s.end - s.start), 0)
+      + (activeSession && activeSession.projectId === id ? Date.now() - activeSession.start : 0);
+  }
+
+  function onProjViewChange(val) {
+    historyProjectFilter = val || null;
+    // סנכרן picker בימין אם נבחר פרויקט ספציפי ולא בעבודה
+    if (val && !activeSession) {
+      selectedProjectId = val;
+      saveSelected();
+      renderPickerSelected();
+      renderPunchButton();
+    }
+    renderSessions();
+    renderStats();
+    renderHistoryTitle();
+  }
+
+  function renderHistoryTitle() {
+    const el = document.getElementById('historyTitle');
+    if (!el) return;
+    if (historyProjectFilter) {
+      const p = getProject(historyProjectFilter);
+      el.textContent = p ? `History · ${p.name}` : 'History';
+    } else {
+      el.textContent = 'History';
+    }
+  }
+
+  function renderProjChips() { renderProjViewSelect(); }
+
+  function renderProjViewSelect() {
+    const sel = document.getElementById('projViewSelect');
+    if (!sel) return;
+    const cur = historyProjectFilter || '';
+    sel.innerHTML = `<option value="">All projects</option>`
+      + projects.map(p =>
+          `<option value="${p.id}" ${p.id === cur ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
+        ).join('');
+  }
+
+  function renderHistoryFilter() {
+    renderProjViewSelect();
+    renderHistoryTitle();
+  }
+
+  function toggleHistoryFilterMenu(ev) {
+    ev.stopPropagation();
+    historyFilterMenuOpen = !historyFilterMenuOpen;
+    renderHistoryFilter();
+  }
+
+  function setHistoryProjectFilter(id) {
+    historyProjectFilter = id;
+    historyFilterMenuOpen = false;
+    renderHistoryFilter();
+    renderSessions();
+    renderStats();
+  }
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  function dateLabel(ts) {
+    const d = new Date(ts), today = new Date();
+    if (isSameDay(d, today)) return 'Today';
+    const yest = new Date(today); yest.setDate(today.getDate()-1);
+    if (isSameDay(d, yest)) return 'Yesterday';
+    return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  }
+
+  function sessItemHtml(s) {
+    const p     = getProject(s.projectId);
+    const color = p ? p.color : '#5a5c63';
+    const name  = p ? p.name  : 'Deleted project';
+    const dur   = s.end - s.start;
+    return `
+      <div class="sess-item" style="--sess-color:${color}" onclick="openEditModal('${s.id}')">
+        <div class="sess-right">
+          <span class="sess-color-bar" style="background:${color}"></span>
+          <span class="sess-proj-name ${!p ? 'deleted' : ''}">${escapeHtml(name)}</span>
+          <span class="sess-date-tag">${dateLabel(s.start)}</span>
+        </div>
+        <div class="sess-center">
+          <span class="sess-dur">${formatDuration(dur)}</span>
+        </div>
+        <div class="sess-left">
+          <div class="sess-meta">
+            <span class="sess-meta-time">${formatTimeOfDay(s.start)} – ${formatTimeOfDay(s.end)}</span>
+          </div>
+        </div>
+        <button class="delete-btn" onclick="event.stopPropagation();deleteSession('${s.id}')" title="מחק">×</button>
+      </div>`;
+  }
+
+  function renderSessions() {
+    const list = document.getElementById('sessionsList');
+    const filtered = historyProjectFilter
+      ? sessions.filter(s => s.projectId === historyProjectFilter)
+      : sessions;
+
+    if (filtered.length === 0) {
+      list.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">⏳</div>
+          <p>${sessions.length === 0 ? 'No sessions yet.<br>Select a project and click Start.' : 'No sessions for this project.'}</p>
+        </div>`;
+      return;
+    }
+
+    const sorted = [...filtered].sort((a, b) => b.start - a.start);
+
+    if (historyView === 'list') {
+      list.innerHTML = sorted.map(sessItemHtml).join('');
+      return;
+    }
+
+    if (historyView === 'day') {
+      const groups = {};
+      for (const s of sorted) {
+        const k = dateKey(s.start); if (!groups[k]) groups[k] = []; groups[k].push(s);
+      }
+      list.innerHTML = Object.entries(groups).map(([dk, dayList]) => {
+        const d = new Date(dayList[0].start);
+        const total = dayList.reduce((sum, s) => sum + (s.end - s.start), 0);
+        const lbl = dateLabel(dayList[0].start);
+        const fullDate = `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+        return `
+          <div class="group-block">
+            <div class="group-header">
+              <div class="group-header-left">
+                <span class="group-title">${lbl === 'Today' || lbl === 'Yesterday' ? lbl + ' · ' + fullDate.split(', ')[1] : fullDate}</span>
+              </div>
+              <span class="group-total">${formatHM(total)}</span>
+            </div>
+            ${dayList.map(sessItemHtml).join('')}
+          </div>`;
+      }).join('');
+      return;
+    }
+
+    if (historyView === 'project') {
+      const groups = {};
+      for (const s of sorted) {
+        const k = s.projectId || '__unknown__'; if (!groups[k]) groups[k] = []; groups[k].push(s);
+      }
+      const byTotal = Object.entries(groups).sort((a,b) =>
+        b[1].reduce((s,x)=>s+(x.end-x.start),0) - a[1].reduce((s,x)=>s+(x.end-x.start),0)
+      );
+      list.innerHTML = byTotal.map(([pid, pList]) => {
+        const p = getProject(pid);
+        const color = p ? p.color : '#5a5c63';
+        const name  = p ? p.name  : 'Deleted project';
+        const total = pList.reduce((sum, s) => sum + (s.end - s.start), 0);
+        return `
+          <div class="group-block">
+            <div class="group-header">
+              <div class="group-header-left">
+                <span class="group-dot" style="background:${color}"></span>
+                <span class="group-title">${escapeHtml(name)}</span>
+              </div>
+              <span class="group-total">${formatHM(total)}</span>
+            </div>
+            ${pList.map(sessItemHtml).join('')}
+          </div>`;
+      }).join('');
+    }
+  }
+
+  function renderAll() {
+    renderHeader();
+    renderClock();
+    renderPickerSelected();
+    renderStatus();
+    renderPunchButton();
+    renderStats();
+    renderProjViewSelect();
+    renderHistoryTitle();
+    renderSessions();
+  }
+
+  async function togglePunch() {
+    if (activeSession) {
+      const session = {
+        id: 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+        projectId: activeSession.projectId,
+        start: activeSession.start,
+        end: Date.now()
+      };
+      if (session.end - session.start >= 1000) { sessions.push(session); await saveSessions(); }
+      activeSession = null;
+      await saveActive();
+    } else {
+      if (!selectedProjectId || !getProject(selectedProjectId)) { alert('Select a project before starting'); return; }
+      activeSession = { projectId: selectedProjectId, start: Date.now() };
+      await saveActive();
+    }
+    renderAll();
+  }
+
+  let editingSessionId = null;
+
+  function openEditModal(id) {
+    const s = sessions.find(x => x.id === id);
+    if (!s) return;
+    editingSessionId = id;
+    const p = getProject(s.projectId);
+
+    // dot color
+    document.getElementById('editModalDot').style.background = p ? p.color : '#5a5c63';
+
+    // date
+    const d = new Date(s.start);
+    const yyyy = d.getFullYear(), mm = pad(d.getMonth()+1), dd = pad(d.getDate());
+    document.getElementById('editDate').value = `${yyyy}-${mm}-${dd}`;
+
+    // times
+    document.getElementById('editStart').value = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const de = new Date(s.end);
+    document.getElementById('editEnd').value = `${pad(de.getHours())}:${pad(de.getMinutes())}`;
+
+    // project select
+    const sel = document.getElementById('editProject');
+    sel.innerHTML = projects.map(pr =>
+      `<option value="${pr.id}" ${pr.id === s.projectId ? 'selected' : ''}>${escapeHtml(pr.name)}</option>`
+    ).join('');
+
+    document.getElementById('editModalBackdrop').classList.add('open');
+  }
+
+  function closeEditModal() {
+    editingSessionId = null;
+    document.getElementById('editModalBackdrop').classList.remove('open');
+  }
+
+  async function saveEditSession() {
+    const s = sessions.find(x => x.id === editingSessionId);
+    if (!s) return;
+
+    const dateVal  = document.getElementById('editDate').value;   // yyyy-mm-dd
+    const startVal = document.getElementById('editStart').value;  // HH:MM
+    const endVal   = document.getElementById('editEnd').value;    // HH:MM
+    const projVal  = document.getElementById('editProject').value;
+
+    if (!dateVal || !startVal || !endVal) { alert('Please fill in all fields'); return; }
+
+    const [yr, mo, dy] = dateVal.split('-').map(Number);
+    const [sh, sm] = startVal.split(':').map(Number);
+    const [eh, em] = endVal.split(':').map(Number);
+
+    const newStart = new Date(yr, mo-1, dy, sh, sm, 0).getTime();
+    let newEnd     = new Date(yr, mo-1, dy, eh, em, 0).getTime();
+    if (newEnd <= newStart) newEnd += 86400000; // overnight
+
+    s.start     = newStart;
+    s.end       = newEnd;
+    s.projectId = projVal;
+
+    await saveSessions();
+    closeEditModal();
+    renderAll();
+  }
+
+  async function deleteEditSession() {
+    if (!confirm('Delete this session?')) return;
+    sessions = sessions.filter(s => s.id !== editingSessionId);
+    await saveSessions();
+    closeEditModal();
+    renderAll();
+  }
+
+  async function deleteSession(id) {
+    if (!confirm('Delete this session?')) return;
+    sessions = sessions.filter(s => s.id !== id);
+    await saveSessions();
+    renderAll();
+  }
+
+  async function clearAll() {
+    if (!confirm('Delete all history including projects? This cannot be undone.')) return;
+    sessions = []; projects = []; activeSession = null; selectedProjectId = null;
+    await saveSessions(); await saveProjects(); await saveActive(); await saveSelected();
+    renderAll(); renderPickerOptions();
+  }
+
+  function exportCSV() {
+    if (sessions.length === 0) { alert('No data to export'); return; }
+    const sorted = [...sessions].sort((a, b) => a.start - b.start);
+    const rows = [['Date','Day','Project','Start','End','Duration (HH:MM)','Duration (decimal hours)']];
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    for (const s of sorted) {
+      const d = new Date(s.start);
+      const dateStr = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+      const dur = s.end - s.start;
+      rows.push([dateStr, days[d.getDay()], projectName(s.projectId), formatTimeOfDay(s.start), formatTimeOfDay(s.end), formatDuration(dur), (dur/3600000).toFixed(2)]);
+    }
+    const csv = '﻿' + rows.map(r => r.map(c => `"${String(c).replaceAll('"','""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const today = new Date();
+    a.download = `time-tracking-${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  (async function init() {
+    await loadState();
+    renderAll();
+    setInterval(() => {
+      renderClock();
+      if (activeSession) { renderStatus(); renderStats(); }
+    }, 1000);
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "time-tracker",
+  "version": "1.0.0",
+  "description": "Time tracking tool by project — Übersicht widget + web app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["time-tracker", "ubersicht", "widget", "productivity"],
+  "author": "edensitko",
+  "license": "MIT"
+}
